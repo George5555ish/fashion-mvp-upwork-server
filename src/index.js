@@ -36,7 +36,33 @@ app.use('/api/products', productRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+  const healthStatus = {
+    status: 'ok',
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+  };
+
+  // Return 503 if database is not connected
+  const statusCode = healthStatus.database === 'connected' ? 200 : 503;
+  
+  res.status(statusCode).json(healthStatus);
+});
+
+// Root endpoint (also for health checks)
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Fashion Outfit Analyzer API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      upload: '/api/upload',
+      analysis: '/api/analysis/:uploadId',
+      products: '/api/products',
+    }
+  });
 });
 
 // Error handling middleware
