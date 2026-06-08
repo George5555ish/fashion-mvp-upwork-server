@@ -2,14 +2,20 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import uploadRoutes from './routes/upload.js';
 import analysisRoutes from './routes/analysis.js';
 import productRoutes from './routes/products.js';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === 'production';
 
 // Middleware
 app.use(cors());
@@ -29,12 +35,11 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fashion-a
   process.exit(1);
 });
 
-// Routes
+// API routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/products', productRoutes);
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   const healthStatus = {
     status: 'ok',
@@ -45,25 +50,39 @@ app.get('/api/health', (req, res) => {
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
   };
 
-  // Return 503 if database is not connected
   const statusCode = healthStatus.database === 'connected' ? 200 : 503;
-  
   res.status(statusCode).json(healthStatus);
 });
 
-// Root endpoint (also for health checks)
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Fashion Outfit Analyzer API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      upload: '/api/upload',
-      analysis: '/api/analysis/:uploadId',
-      products: '/api/products',
-    }
-  });
+// API 404 handler (must be before SPA fallback)
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found' });
 });
+
+if (!isProduction) {
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'Fashion Outfit Analyzer API',
+      version: '1.0.0',
+      endpoints: {
+        health: '/api/health',
+        upload: '/api/upload',
+        analysis: '/api/analysis/:uploadId',
+        products: '/api/products',
+      },
+    });
+  });
+}
+
+// Serve frontend in production
+if (isProduction) {
+  const clientDist = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientDist));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {
