@@ -1,12 +1,54 @@
 import Product from '../models/Product.js';
+import { isEbayConfigured } from './ebay/ebayConfig.js';
+import { findEbayProducts, EBAY_RESULT_LIMIT } from './ebay/ebaySearch.js';
+import { logEbay, logEbayError } from './ebay/ebayLogger.js';
 
 /**
- * Find similar products for a detected clothing item
- * @param {Object} detectedItem - The detected item with category, color, style, description
- * @param {number} limit - Maximum number of products to return
- * @returns {Promise<Array>} Array of similar products
+ * Find similar products for a detected clothing item.
+ * Uses eBay Browse API when configured, otherwise falls back to seed database.
+ * @returns {{ products: Array, matchSource: 'ebay'|'seed', ebayResultCount: number|null }}
  */
 export async function findSimilarProducts(detectedItem, limit = 5) {
+  let ebayResultCount = null;
+
+  if (isEbayConfigured()) {
+    try {
+      const ebayProducts = await findEbayProducts(detectedItem, EBAY_RESULT_LIMIT);
+      ebayResultCount = ebayProducts.length;
+
+      if (ebayProducts.length > 0) {
+        logEbay('Using eBay results for detected item', {
+          category: detectedItem.category,
+          productCount: ebayProducts.length,
+        });
+        return {
+          products: ebayProducts,
+          matchSource: 'ebay',
+          ebayResultCount,
+        };
+      }
+
+      logEbay('eBay returned no products — falling back to seed DB', {
+        category: detectedItem.category,
+      });
+    } catch (error) {
+      ebayResultCount = 0;
+      logEbayError('Search failed — falling back to seed DB', error);
+    }
+  } else {
+    console.log('[OutFind] eBay not configured — using seed DB for', detectedItem.category);
+  }
+
+  const products = await findSeedProducts(detectedItem, limit);
+  return {
+    products,
+    matchSource: 'seed',
+    ebayResultCount,
+  };
+}
+
+async function findSeedProducts(detectedItem, limit = 5) {
+  console.log('[OutFind] Using seed DB for', detectedItem.category);
   try {
     const { category, color, style, description } = detectedItem;
 
@@ -80,7 +122,6 @@ export async function findSimilarProducts(detectedItem, limit = 5) {
     return products;
   } catch (error) {
     console.error('Error finding similar products:', error);
-    // Fallback to simple category match
     try {
       const fallbackProducts = await Product.find({ category: detectedItem.category })
         .limit(limit);

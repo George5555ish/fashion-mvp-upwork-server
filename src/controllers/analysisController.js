@@ -35,6 +35,8 @@ export async function getAnalysis(req, res) {
         style: item.style,
         description: item.description,
         matchedProducts: item.matchedProducts || [],
+        matchSource: item.matchSource || 'seed',
+        ebayResultCount: item.ebayResultCount ?? null,
       })),
       analysisResults: upload.analysisResults,
       error: upload.error,

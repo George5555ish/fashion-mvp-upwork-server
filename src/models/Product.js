@@ -18,7 +18,7 @@ const productSchema = new mongoose.Schema({
   },
   brand: {
     type: String,
-    default: 'Grapeslab',
+    default: 'OutFind',
   },
   price: {
     type: Number,
@@ -47,6 +47,11 @@ const productSchema = new mongoose.Schema({
   style: {
     type: String,
     default: '',
+  },
+  source: {
+    type: String,
+    enum: ['seed', 'ebay'],
+    default: 'seed',
   },
 }, {
   timestamps: true,

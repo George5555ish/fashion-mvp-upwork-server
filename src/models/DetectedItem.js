@@ -32,6 +32,15 @@ const detectedItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
   }],
+  matchSource: {
+    type: String,
+    enum: ['ebay', 'seed'],
+    default: 'seed',
+  },
+  ebayResultCount: {
+    type: Number,
+    default: null,
+  },
 }, {
   timestamps: true,
 });
