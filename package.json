@@ -9,16 +9,23 @@
     "dev": "nodemon src/index.js",
     "seed": "node src/scripts/seedProducts.js"
   },
-  "keywords": ["fashion", "ai", "outfit", "analyzer"],
+  "keywords": [
+    "fashion",
+    "ai",
+    "outfit",
+    "analyzer"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.0.3",
     "multer": "^1.4.5-lts.1",
     "openai": "^4.20.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

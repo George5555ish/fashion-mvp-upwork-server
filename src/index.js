@@ -7,6 +7,12 @@ import { fileURLToPath } from 'url';
 import uploadRoutes from './routes/upload.js';
 import analysisRoutes from './routes/analysis.js';
 import productRoutes from './routes/products.js';
+import authRoutes from './routes/auth.js';
+import albumRoutes from './routes/albums.js';
+import lookRoutes from './routes/looks.js';
+import adminRoutes from './routes/admin.js';
+import closetRoutes from './routes/closet.js';
+import shareRoutes from './routes/share.js';
 import { logEbayConfigStatus } from './services/ebay/ebayLogger.js';
 
 dotenv.config();
@@ -47,6 +53,12 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fashion-a
 });
 
 // API routes
+app.use('/api/auth', authRoutes);
+app.use('/api/albums', albumRoutes);
+app.use('/api/looks', lookRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/closet', closetRoutes);
+app.use('/api/share', shareRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/products', productRoutes);
@@ -77,6 +89,11 @@ if (!isProduction) {
       version: '1.0.0',
       endpoints: {
         health: '/api/health',
+        auth: '/api/auth',
+        albums: '/api/albums',
+        looks: '/api/looks',
+        admin: '/api/admin',
+        closet: '/api/closet',
         upload: '/api/upload',
         analysis: '/api/analysis/:uploadId',
         products: '/api/products',
