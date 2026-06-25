@@ -1,42 +1,107 @@
 import Product from '../models/Product.js';
 import { isEbayConfigured } from './ebay/ebayConfig.js';
 import { findEbayProducts, EBAY_RESULT_LIMIT } from './ebay/ebaySearch.js';
-import { logEbay, logEbayError } from './ebay/ebayLogger.js';
+import { logEbayError } from './ebay/ebayLogger.js';
+import { isSerpApiConfigured } from './serpapi/serpapiConfig.js';
+import { findShoppingProducts, SHOPPING_RESULT_LIMIT } from './serpapi/serpapiSearch.js';
+import { findCachedProducts, saveSearchCache } from './searchCacheService.js';
+
+function resolveMatchSource(ebayProducts, shoppingProducts) {
+  const hasEbay = ebayProducts.length > 0;
+  const hasShopping = shoppingProducts.length > 0;
+
+  if (hasEbay && hasShopping) {
+    return 'mixed';
+  }
+  if (hasEbay) {
+    return 'ebay';
+  }
+  if (hasShopping) {
+    return 'shopping';
+  }
+  return 'seed';
+}
 
 /**
  * Find similar products for a detected clothing item.
- * Uses eBay Browse API when configured, otherwise falls back to seed database.
- * @returns {{ products: Array, matchSource: 'ebay'|'seed', ebayResultCount: number|null }}
+ * Checks local search cache first, then eBay + Google Shopping in parallel.
  */
 export async function findSimilarProducts(detectedItem, limit = 5) {
-  let ebayResultCount = null;
+  const cached = await findCachedProducts(detectedItem);
+  if (cached) {
+    return {
+      products: cached.products,
+      matchSource: resolveMatchSource(cached.ebayProducts, cached.shoppingProducts),
+      ebayResultCount: cached.ebayResultCount,
+      shoppingResultCount: cached.shoppingResultCount,
+      fromCache: true,
+    };
+  }
+
+  let ebayResultCount = isEbayConfigured() ? 0 : null;
+  let shoppingResultCount = isSerpApiConfigured() ? 0 : null;
+  let ebayProducts = [];
+  let shoppingProducts = [];
+
+  const searchTasks = [];
 
   if (isEbayConfigured()) {
-    try {
-      const ebayProducts = await findEbayProducts(detectedItem, EBAY_RESULT_LIMIT);
-      ebayResultCount = ebayProducts.length;
+    searchTasks.push(
+      findEbayProducts(detectedItem, EBAY_RESULT_LIMIT)
+        .then((products) => {
+          ebayProducts = products;
+          ebayResultCount = products.length;
+        })
+        .catch((error) => {
+          ebayResultCount = 0;
+          logEbayError('Search failed', error);
+        })
+    );
+  }
 
-      if (ebayProducts.length > 0) {
-        logEbay('Using eBay results for detected item', {
-          category: detectedItem.category,
-          productCount: ebayProducts.length,
-        });
-        return {
-          products: ebayProducts,
-          matchSource: 'ebay',
-          ebayResultCount,
-        };
-      }
+  if (isSerpApiConfigured()) {
+    searchTasks.push(
+      findShoppingProducts(detectedItem, SHOPPING_RESULT_LIMIT)
+        .then((products) => {
+          shoppingProducts = products;
+          shoppingResultCount = products.length;
+        })
+        .catch((error) => {
+          shoppingResultCount = 0;
+          console.error('[SerpAPI] Search failed', error);
+        })
+    );
+  }
 
-      logEbay('eBay returned no products — falling back to seed DB', {
-        category: detectedItem.category,
-      });
-    } catch (error) {
-      ebayResultCount = 0;
-      logEbayError('Search failed — falling back to seed DB', error);
-    }
+  if (searchTasks.length > 0) {
+    await Promise.all(searchTasks);
+  }
+
+  const retailerProducts = [...ebayProducts, ...shoppingProducts];
+
+  if (retailerProducts.length > 0) {
+    await saveSearchCache(detectedItem, ebayProducts, shoppingProducts);
+
+    console.log('[OutFind] Retailer matches for', detectedItem.category, {
+      ebay: ebayProducts.length,
+      shopping: shoppingProducts.length,
+      matchSource: resolveMatchSource(ebayProducts, shoppingProducts),
+      fromCache: false,
+    });
+
+    return {
+      products: retailerProducts,
+      matchSource: resolveMatchSource(ebayProducts, shoppingProducts),
+      ebayResultCount,
+      shoppingResultCount,
+      fromCache: false,
+    };
+  }
+
+  if (isEbayConfigured() || isSerpApiConfigured()) {
+    console.log('[OutFind] No retailer matches — using seed DB for', detectedItem.category);
   } else {
-    console.log('[OutFind] eBay not configured — using seed DB for', detectedItem.category);
+    console.log('[OutFind] No retailer APIs configured — using seed DB for', detectedItem.category);
   }
 
   const products = await findSeedProducts(detectedItem, limit);
@@ -44,6 +109,8 @@ export async function findSimilarProducts(detectedItem, limit = 5) {
     products,
     matchSource: 'seed',
     ebayResultCount,
+    shoppingResultCount,
+    fromCache: false,
   };
 }
 
@@ -52,10 +119,8 @@ async function findSeedProducts(detectedItem, limit = 5) {
   try {
     const { category, color, style, description } = detectedItem;
 
-    // Build search query
     let query = { category: category };
 
-    // If color is specified, include it in the search
     if (color && color.trim() !== '') {
       query.$or = [
         { color: { $regex: color, $options: 'i' } },
@@ -63,13 +128,12 @@ async function findSeedProducts(detectedItem, limit = 5) {
       ];
     }
 
-    // Also search by tags that might match style/description
     if (style || description) {
       const searchTerms = [style, description]
         .filter(term => term && term.trim() !== '')
         .map(term => term.toLowerCase().split(/\s+/))
         .flat()
-        .filter(term => term.length > 3); // Filter out very short terms
+        .filter(term => term.length > 3);
 
       if (searchTerms.length > 0) {
         query.$or = query.$or || [];
@@ -79,14 +143,11 @@ async function findSeedProducts(detectedItem, limit = 5) {
       }
     }
 
-    // If no $or clause was added, remove it
     if (query.$or && query.$or.length === 0) {
       delete query.$or;
     }
 
-    // If $or exists but color also exists, make it more flexible
     if (color && query.$or) {
-      // Add exact color match as higher priority
       query = {
         category: category,
         $or: [
@@ -96,21 +157,17 @@ async function findSeedProducts(detectedItem, limit = 5) {
       };
     }
 
-    // Find products matching the criteria
     let products = await Product.find(query).limit(limit * 2);
 
-    // If we don't have enough matches, fall back to category-only search
     if (products.length < limit) {
       const categoryOnlyProducts = await Product.find({ category: category })
         .limit(limit * 2);
-      
-      // Merge and deduplicate
+
       const existingIds = new Set(products.map(p => p._id.toString()));
       const additional = categoryOnlyProducts.filter(p => !existingIds.has(p._id.toString()));
       products = [...products, ...additional];
     }
 
-    // Score and sort products
     products = products.map(product => ({
       product,
       score: calculateMatchScore(product, detectedItem)
@@ -133,16 +190,9 @@ async function findSeedProducts(detectedItem, limit = 5) {
   }
 }
 
-/**
- * Calculate match score for a product based on detected item
- * @param {Object} product - Product from database
- * @param {Object} detectedItem - Detected item
- * @returns {number} Match score (0-100)
- */
 function calculateMatchScore(product, detectedItem) {
-  let score = 50; // Base score for category match
+  let score = 50;
 
-  // Color match bonus (20 points)
   if (detectedItem.color && product.color) {
     const itemColor = detectedItem.color.toLowerCase();
     const productColor = product.color.toLowerCase();
@@ -151,10 +201,9 @@ function calculateMatchScore(product, detectedItem) {
     }
   }
 
-  // Tag match bonus (15 points)
   if (detectedItem.style && product.tags) {
     const styleTerms = detectedItem.style.toLowerCase().split(/\s+/);
-    const matchingTags = product.tags.filter(tag => 
+    const matchingTags = product.tags.filter(tag =>
       styleTerms.some(term => tag.toLowerCase().includes(term))
     );
     if (matchingTags.length > 0) {
@@ -162,7 +211,6 @@ function calculateMatchScore(product, detectedItem) {
     }
   }
 
-  // Description match bonus (15 points)
   if (detectedItem.description && product.description) {
     const descTerms = detectedItem.description.toLowerCase().split(/\s+/).slice(0, 5);
     const productDesc = product.description.toLowerCase();

@@ -14,6 +14,7 @@ import adminRoutes from './routes/admin.js';
 import closetRoutes from './routes/closet.js';
 import shareRoutes from './routes/share.js';
 import { logEbayConfigStatus } from './services/ebay/ebayLogger.js';
+import { logSerpApiConfigStatus } from './services/serpapi/serpapiLogger.js';
 
 dotenv.config();
 
@@ -124,4 +125,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   logEbayConfigStatus();
+  logSerpApiConfigStatus();
 });

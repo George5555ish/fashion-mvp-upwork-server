@@ -34,10 +34,14 @@ const detectedItemSchema = new mongoose.Schema({
   }],
   matchSource: {
     type: String,
-    enum: ['ebay', 'seed'],
+    enum: ['ebay', 'shopping', 'mixed', 'seed'],
     default: 'seed',
   },
   ebayResultCount: {
+    type: Number,
+    default: null,
+  },
+  shoppingResultCount: {
     type: Number,
     default: null,
   },

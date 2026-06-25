@@ -4,7 +4,7 @@ import { buildAffiliateUrl } from './ebayAffiliate.js';
 import { buildEbaySearchQueries, normalizeCategory } from './ebayQueryBuilder.js';
 import { ebayApiGet, resolveEbayShopUrl } from './ebayClient.js';
 import { logEbay } from './ebayLogger.js';
-import { filterMatchingEbayProducts } from './ebayResultValidator.js';
+import { filterMatchingListingProducts } from './ebayResultValidator.js';
 
 export const EBAY_RESULT_LIMIT = 3;
 
@@ -140,7 +140,7 @@ export async function findEbayProducts(detectedItem, limit = EBAY_RESULT_LIMIT) 
     return [];
   }
 
-  const validatedProductData = await filterMatchingEbayProducts(detectedItem, productDataList);
+  const validatedProductData = await filterMatchingListingProducts(detectedItem, productDataList);
   if (validatedProductData.length === 0) {
     logEbay('No listings passed AI color/type validation', {
       category: detectedItem.category,

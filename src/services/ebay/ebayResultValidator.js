@@ -95,7 +95,7 @@ function filterByTitleColor(productDataList, detectedItem) {
  * Use vision to keep only eBay listings that match the detected item's type and color.
  * Returns an empty array when none pass or validation fails.
  */
-export async function filterMatchingEbayProducts(detectedItem, productDataList) {
+export async function filterMatchingListingProducts(detectedItem, productDataList) {
   if (!productDataList.length) {
     return [];
   }

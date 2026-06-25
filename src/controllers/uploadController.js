@@ -112,11 +112,12 @@ async function analyzeAndMatchProducts(uploadId, base64Image, mimeType) {
         ...item,
       });
 
-      const { products, matchSource, ebayResultCount } = await findSimilarProducts(item, 5);
-      console.log('[OutFind] Matched products:', products.length, 'for', item.category, '| source:', matchSource, '| ebayCount:', ebayResultCount);
+      const { products, matchSource, ebayResultCount, shoppingResultCount, fromCache } = await findSimilarProducts(item, 5);
+      console.log('[OutFind] Matched products:', products.length, 'for', item.category, '| source:', matchSource, '| ebay:', ebayResultCount, '| shopping:', shoppingResultCount, '| cache:', fromCache ? 'hit' : 'miss');
       detectedItem.matchedProducts = products.map(p => p._id);
       detectedItem.matchSource = matchSource;
       detectedItem.ebayResultCount = ebayResultCount;
+      detectedItem.shoppingResultCount = shoppingResultCount;
 
       await detectedItem.save();
       detectedItemIds.push(detectedItem._id);

@@ -50,7 +50,7 @@ const productSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['seed', 'ebay'],
+    enum: ['seed', 'ebay', 'shopping'],
     default: 'seed',
   },
 }, {
