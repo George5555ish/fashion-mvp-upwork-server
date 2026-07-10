@@ -1,4 +1,5 @@
 import CuratedLook from '../models/CuratedLook.js';
+import CuratedCollection from '../models/CuratedCollection.js';
 
 function formatLook(look, includeImage = true) {
   const formatted = {
@@ -7,6 +8,8 @@ function formatLook(look, includeImage = true) {
     caption: look.caption,
     links: look.links || [],
     published: look.published,
+    collectionId: look.collection?._id?.toString() || look.collection?.toString() || null,
+    collectionName: look.collection?.name || null,
     createdAt: look.createdAt,
     updatedAt: look.updatedAt,
   };
@@ -19,21 +22,43 @@ function formatLook(look, includeImage = true) {
   return formatted;
 }
 
+async function resolveCollectionId(collectionId, userId) {
+  if (!collectionId || collectionId === 'none' || collectionId === 'null') {
+    return null;
+  }
+
+  const collection = await CuratedCollection.findOne({
+    _id: collectionId,
+    createdBy: userId,
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  return collection._id;
+}
+
 export async function listPublishedLooks(req, res) {
   try {
     const looks = await CuratedLook.find({ published: true })
+      .populate('collection', 'name published')
       .sort({ createdAt: -1 });
 
     res.json({
-      looks: looks.map((look) => ({
-        id: look._id.toString(),
-        title: look.title,
-        caption: look.caption,
-        links: look.links || [],
-        imageMimeType: look.imageMimeType,
-        imageBase64: look.imageBase64,
-        createdAt: look.createdAt,
-      })),
+      looks: looks
+        .filter((look) => !look.collection || look.collection.published)
+        .map((look) => ({
+          id: look._id.toString(),
+          title: look.title,
+          caption: look.caption,
+          links: look.links || [],
+          imageMimeType: look.imageMimeType,
+          imageBase64: look.imageBase64,
+          collectionId: look.collection?._id?.toString() || null,
+          collectionName: look.collection?.name || null,
+          createdAt: look.createdAt,
+        })),
     });
   } catch (error) {
     console.error('[OutFind] List looks error:', error);
@@ -46,9 +71,13 @@ export async function getPublishedLook(req, res) {
     const look = await CuratedLook.findOne({
       _id: req.params.lookId,
       published: true,
-    });
+    }).populate('collection', 'name published');
 
     if (!look) {
+      return res.status(404).json({ error: 'Look not found' });
+    }
+
+    if (look.collection && !look.collection.published) {
       return res.status(404).json({ error: 'Look not found' });
     }
 
@@ -62,6 +91,7 @@ export async function getPublishedLook(req, res) {
 export async function listAdminLooks(req, res) {
   try {
     const looks = await CuratedLook.find({ createdBy: req.user._id })
+      .populate('collection', 'name published')
       .sort({ createdAt: -1 });
 
     res.json({ looks: looks.map((look) => formatLook(look)) });
@@ -77,6 +107,7 @@ export async function createLook(req, res) {
     const caption = req.body.caption?.trim() || '';
     const published = req.body.published === true || req.body.published === 'true';
     const links = parseLinks(req.body.links);
+    const collection = await resolveCollectionId(req.body.collectionId, req.user._id);
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -91,13 +122,18 @@ export async function createLook(req, res) {
       caption,
       links,
       published,
+      collection,
       imageBase64: req.file.buffer.toString('base64'),
       imageMimeType: req.file.mimetype,
       createdBy: req.user._id,
     });
 
+    await look.populate('collection', 'name published');
     res.status(201).json({ look: formatLook(look) });
   } catch (error) {
+    if (error.message === 'Collection not found') {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('[OutFind] Create look error:', error);
     res.status(500).json({ error: 'Failed to create look' });
   }
@@ -126,14 +162,21 @@ export async function updateLook(req, res) {
     if (req.body.links !== undefined) {
       look.links = parseLinks(req.body.links);
     }
+    if (req.body.collectionId !== undefined) {
+      look.collection = await resolveCollectionId(req.body.collectionId, req.user._id);
+    }
     if (req.file) {
       look.imageBase64 = req.file.buffer.toString('base64');
       look.imageMimeType = req.file.mimetype;
     }
 
     await look.save();
+    await look.populate('collection', 'name published');
     res.json({ look: formatLook(look) });
   } catch (error) {
+    if (error.message === 'Collection not found') {
+      return res.status(400).json({ error: error.message });
+    }
     console.error('[OutFind] Update look error:', error);
     res.status(500).json({ error: 'Failed to update look' });
   }

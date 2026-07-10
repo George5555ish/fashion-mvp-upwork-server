@@ -1,5 +1,11 @@
 import express from 'express';
 import {
+  createCollection,
+  deleteCollection,
+  listAdminCollections,
+  updateCollection,
+} from '../controllers/curatedCollectionController.js';
+import {
   createLook,
   deleteLook,
   listAdminLooks,
@@ -11,6 +17,11 @@ import { imageUpload } from '../middleware/uploadMiddleware.js';
 const router = express.Router();
 
 router.use(requireAuth, requireAdmin);
+
+router.get('/collections', listAdminCollections);
+router.post('/collections', createCollection);
+router.put('/collections/:collectionId', updateCollection);
+router.delete('/collections/:collectionId', deleteCollection);
 
 router.get('/looks', listAdminLooks);
 router.post('/looks', imageUpload.single('image'), createLook);

@@ -10,6 +10,7 @@ import productRoutes from './routes/products.js';
 import authRoutes from './routes/auth.js';
 import albumRoutes from './routes/albums.js';
 import lookRoutes from './routes/looks.js';
+import collectionRoutes from './routes/collections.js';
 import adminRoutes from './routes/admin.js';
 import closetRoutes from './routes/closet.js';
 import shareRoutes from './routes/share.js';
@@ -57,6 +58,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fashion-a
 app.use('/api/auth', authRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/looks', lookRoutes);
+app.use('/api/collections', collectionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/closet', closetRoutes);
 app.use('/api/share', shareRoutes);

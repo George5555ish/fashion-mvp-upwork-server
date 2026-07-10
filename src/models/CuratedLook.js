@@ -36,6 +36,12 @@ const curatedLookSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  collection: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CuratedCollection',
+    default: null,
+    index: true,
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
