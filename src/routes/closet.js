@@ -7,6 +7,7 @@ import {
   listClosetItems,
   listOutfits,
   shareOutfit,
+  updateClosetItem,
 } from '../controllers/closetController.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { imageUpload } from '../middleware/uploadMiddleware.js';
@@ -17,6 +18,7 @@ router.use(requireAuth);
 
 router.get('/items', listClosetItems);
 router.post('/items', imageUpload.single('image'), createClosetItem);
+router.patch('/items/:itemId', imageUpload.single('image'), updateClosetItem);
 router.delete('/items/:itemId', deleteClosetItem);
 
 router.get('/outfits', listOutfits);

@@ -104,6 +104,43 @@ export async function deleteClosetItem(req, res) {
   }
 }
 
+export async function updateClosetItem(req, res) {
+  try {
+    const item = await ClosetItem.findOne({
+      _id: req.params.itemId,
+      user: req.user._id,
+    });
+
+    if (!item) {
+      return res.status(404).json({ error: 'Closet item not found' });
+    }
+
+    if (req.body.name !== undefined) {
+      item.name = req.body.name.trim();
+    }
+    if (req.body.category !== undefined) {
+      item.category = req.body.category.trim().toLowerCase();
+    }
+    if (req.body.color !== undefined) {
+      item.color = req.body.color.trim();
+    }
+    if (req.file) {
+      item.imageBase64 = req.file.buffer.toString('base64');
+      item.imageMimeType = req.file.mimetype;
+    }
+
+    if (!item.name || !item.category) {
+      return res.status(400).json({ error: 'Name and category are required' });
+    }
+
+    await item.save();
+    res.json({ item: formatClosetItem(item) });
+  } catch (error) {
+    console.error('[OutFind] Update closet item error:', error);
+    res.status(500).json({ error: 'Failed to update closet item' });
+  }
+}
+
 export async function listOutfits(req, res) {
   try {
     const outfits = await Outfit.find({ user: req.user._id })
