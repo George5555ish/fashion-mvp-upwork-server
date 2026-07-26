@@ -21,5 +21,6 @@ const curatedCollectionSchema = new mongoose.Schema({
 });
 
 curatedCollectionSchema.index({ createdBy: 1, name: 1 }, { unique: true });
+curatedCollectionSchema.index({ published: 1, name: 1 });
 
 export default mongoose.model('CuratedCollection', curatedCollectionSchema);

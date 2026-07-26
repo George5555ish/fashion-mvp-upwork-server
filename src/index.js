@@ -16,6 +16,8 @@ import closetRoutes from './routes/closet.js';
 import shareRoutes from './routes/share.js';
 import ClosetItem from './models/ClosetItem.js';
 import Outfit from './models/Outfit.js';
+import CuratedLook from './models/CuratedLook.js';
+import CuratedCollection from './models/CuratedCollection.js';
 import { logEbayConfigStatus } from './services/ebay/ebayLogger.js';
 import { logSerpApiConfigStatus } from './services/serpapi/serpapiLogger.js';
 
@@ -44,17 +46,16 @@ app.use('/api', (req, res, next) => {
 });
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fashion-analyzer', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fashion-analyzer')
 .then(async () => {
   console.log('✅ Connected to MongoDB');
   await Promise.all([
     ClosetItem.syncIndexes(),
     Outfit.syncIndexes(),
+    CuratedLook.syncIndexes(),
+    CuratedCollection.syncIndexes(),
   ]);
-  console.log('✅ Closet indexes synced');
+  console.log('✅ Database indexes synced');
 })
 .catch((error) => {
   console.error('❌ MongoDB connection error:', error);

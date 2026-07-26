@@ -51,4 +51,8 @@ const curatedLookSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+curatedLookSchema.index({ published: 1, createdAt: -1 });
+curatedLookSchema.index({ published: 1, collection: 1, createdAt: -1 });
+curatedLookSchema.index({ createdBy: 1, createdAt: -1 });
+
 export default mongoose.model('CuratedLook', curatedLookSchema);
