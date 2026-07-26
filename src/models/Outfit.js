@@ -33,4 +33,6 @@ const outfitSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+outfitSchema.index({ user: 1, updatedAt: -1 });
+
 export default mongoose.model('Outfit', outfitSchema);

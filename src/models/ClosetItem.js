@@ -34,4 +34,6 @@ const closetItemSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+closetItemSchema.index({ user: 1, createdAt: -1 });
+
 export default mongoose.model('ClosetItem', closetItemSchema);
