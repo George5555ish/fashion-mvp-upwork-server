@@ -1,21 +1,30 @@
 import ClosetItem from '../models/ClosetItem.js';
 import Outfit from '../models/Outfit.js';
 import { v4 as uuidv4 } from 'uuid';
+import { sendBase64Image } from '../utils/imageResponse.js';
+
 const VALID_CATEGORIES = [
   'top', 'shirt', 'jacket', 'coat', 'pants', 'jeans', 'dress',
   'skirt', 'shoes', 'sneakers', 'boots', 'accessories', 'bag',
 ];
 
-function formatClosetItem(item) {
-  return {
+const CLOSET_ITEM_LIST_FIELDS = 'name category color imageMimeType createdAt';
+
+function formatClosetItem(item, { includeImage = false } = {}) {
+  const formatted = {
     id: item._id.toString(),
     name: item.name,
     category: item.category,
     color: item.color,
     imageMimeType: item.imageMimeType,
-    imageBase64: item.imageBase64,
     createdAt: item.createdAt,
   };
+
+  if (includeImage && item.imageBase64) {
+    formatted.imageBase64 = item.imageBase64;
+  }
+
+  return formatted;
 }
 
 function formatOutfit(outfit) {
@@ -43,11 +52,31 @@ function formatSharedOutfit(outfit) {
 }
 export async function listClosetItems(req, res) {
   try {
-    const items = await ClosetItem.find({ user: req.user._id }).sort({ createdAt: -1 });
-    res.json({ items: items.map(formatClosetItem) });
+    const items = await ClosetItem.find({ user: req.user._id })
+      .select(CLOSET_ITEM_LIST_FIELDS)
+      .sort({ createdAt: -1 });
+    res.json({ items: items.map((item) => formatClosetItem(item)) });
   } catch (error) {
     console.error('[OutFind] List closet items error:', error);
     res.status(500).json({ error: 'Failed to load closet items' });
+  }
+}
+
+export async function getClosetItemImage(req, res) {
+  try {
+    const item = await ClosetItem.findOne({
+      _id: req.params.itemId,
+      user: req.user._id,
+    }).select('imageBase64 imageMimeType');
+
+    if (!item?.imageBase64) {
+      return res.status(404).json({ error: 'Closet item not found' });
+    }
+
+    sendBase64Image(res, item.imageBase64, item.imageMimeType);
+  } catch (error) {
+    console.error('[OutFind] Get closet item image error:', error);
+    res.status(500).json({ error: 'Failed to load closet item image' });
   }
 }
 
@@ -74,7 +103,7 @@ export async function createClosetItem(req, res) {
       imageMimeType: req.file.mimetype,
     });
 
-    res.status(201).json({ item: formatClosetItem(item) });
+    res.status(201).json({ item: formatClosetItem(item, { includeImage: true }) });
   } catch (error) {
     console.error('[OutFind] Create closet item error:', error);
     res.status(500).json({ error: 'Failed to add closet item' });
@@ -134,7 +163,7 @@ export async function updateClosetItem(req, res) {
     }
 
     await item.save();
-    res.json({ item: formatClosetItem(item) });
+    res.json({ item: formatClosetItem(item, { includeImage: true }) });
   } catch (error) {
     console.error('[OutFind] Update closet item error:', error);
     res.status(500).json({ error: 'Failed to update closet item' });
@@ -144,7 +173,7 @@ export async function updateClosetItem(req, res) {
 export async function listOutfits(req, res) {
   try {
     const outfits = await Outfit.find({ user: req.user._id })
-      .populate('items')
+      .populate('items', CLOSET_ITEM_LIST_FIELDS)
       .sort({ updatedAt: -1 });
 
     res.json({ outfits: outfits.map(formatOutfit) });
@@ -182,7 +211,7 @@ export async function createOutfit(req, res) {
       items: itemIds,
     });
 
-    const populated = await Outfit.findById(outfit._id).populate('items');
+    const populated = await Outfit.findById(outfit._id).populate('items', CLOSET_ITEM_LIST_FIELDS);
     res.status(201).json({ outfit: formatOutfit(populated) });
   } catch (error) {
     console.error('[OutFind] Create outfit error:', error);
@@ -213,7 +242,7 @@ export async function shareOutfit(req, res) {
     const outfit = await Outfit.findOne({
       _id: req.params.outfitId,
       user: req.user._id,
-    }).populate('items');
+    }).populate('items', CLOSET_ITEM_LIST_FIELDS);
 
     if (!outfit) {
       return res.status(404).json({ error: 'Outfit not found' });
@@ -243,7 +272,7 @@ export async function getSharedOutfit(req, res) {
       shareId: req.params.shareId,
       isShared: true,
     })
-      .populate('items')
+      .populate('items', CLOSET_ITEM_LIST_FIELDS)
       .populate('user', 'name');
 
     if (!outfit) {
@@ -254,6 +283,38 @@ export async function getSharedOutfit(req, res) {
   } catch (error) {
     console.error('[OutFind] Get shared outfit error:', error);
     res.status(500).json({ error: 'Failed to load shared outfit' });
+  }
+}
+
+export async function getSharedOutfitItemImage(req, res) {
+  try {
+    const outfit = await Outfit.findOne({
+      shareId: req.params.shareId,
+      isShared: true,
+    }).select('items');
+
+    if (!outfit) {
+      return res.status(404).json({ error: 'Shared outfit not found or link has expired' });
+    }
+
+    const itemBelongsToShare = outfit.items.some(
+      (itemId) => itemId.toString() === req.params.itemId,
+    );
+
+    if (!itemBelongsToShare) {
+      return res.status(404).json({ error: 'Closet item not found' });
+    }
+
+    const item = await ClosetItem.findById(req.params.itemId).select('imageBase64 imageMimeType');
+
+    if (!item?.imageBase64) {
+      return res.status(404).json({ error: 'Closet item not found' });
+    }
+
+    sendBase64Image(res, item.imageBase64, item.imageMimeType);
+  } catch (error) {
+    console.error('[OutFind] Get shared outfit item image error:', error);
+    res.status(500).json({ error: 'Failed to load closet item image' });
   }
 }
 

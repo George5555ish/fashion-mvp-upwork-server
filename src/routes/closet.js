@@ -4,6 +4,7 @@ import {
   createOutfit,
   deleteClosetItem,
   deleteOutfit,
+  getClosetItemImage,
   listClosetItems,
   listOutfits,
   shareOutfit,
@@ -17,6 +18,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 router.get('/items', listClosetItems);
+router.get('/items/:itemId/image', getClosetItemImage);
 router.post('/items', imageUpload.single('image'), createClosetItem);
 router.patch('/items/:itemId', imageUpload.single('image'), updateClosetItem);
 router.delete('/items/:itemId', deleteClosetItem);

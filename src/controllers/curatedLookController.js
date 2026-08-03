@@ -1,5 +1,6 @@
 import CuratedLook from '../models/CuratedLook.js';
 import CuratedCollection from '../models/CuratedCollection.js';
+import { sendBase64Image } from '../utils/imageResponse.js';
 
 function formatLook(look, includeImage = true) {
   const formatted = {
@@ -42,6 +43,7 @@ async function resolveCollectionId(collectionId, userId) {
 export async function listPublishedLooks(req, res) {
   try {
     const looks = await CuratedLook.find({ published: true })
+      .select('title caption links imageMimeType collection createdAt')
       .populate('collection', 'name published')
       .sort({ createdAt: -1 });
 
@@ -54,7 +56,6 @@ export async function listPublishedLooks(req, res) {
           caption: look.caption,
           links: look.links || [],
           imageMimeType: look.imageMimeType,
-          imageBase64: look.imageBase64,
           collectionId: look.collection?._id?.toString() || null,
           collectionName: look.collection?.name || null,
           createdAt: look.createdAt,
@@ -63,6 +64,30 @@ export async function listPublishedLooks(req, res) {
   } catch (error) {
     console.error('[OutFind] List looks error:', error);
     res.status(500).json({ error: 'Failed to load looks' });
+  }
+}
+
+export async function getPublishedLookImage(req, res) {
+  try {
+    const look = await CuratedLook.findOne({
+      _id: req.params.lookId,
+      published: true,
+    })
+      .select('imageBase64 imageMimeType collection')
+      .populate('collection', 'published');
+
+    if (!look?.imageBase64) {
+      return res.status(404).json({ error: 'Look not found' });
+    }
+
+    if (look.collection && !look.collection.published) {
+      return res.status(404).json({ error: 'Look not found' });
+    }
+
+    sendBase64Image(res, look.imageBase64, look.imageMimeType);
+  } catch (error) {
+    console.error('[OutFind] Get look image error:', error);
+    res.status(500).json({ error: 'Failed to load look image' });
   }
 }
 
@@ -91,13 +116,32 @@ export async function getPublishedLook(req, res) {
 export async function listAdminLooks(req, res) {
   try {
     const looks = await CuratedLook.find({ createdBy: req.user._id })
+      .select('title caption links imageMimeType published collection createdAt updatedAt')
       .populate('collection', 'name published')
       .sort({ createdAt: -1 });
 
-    res.json({ looks: looks.map((look) => formatLook(look)) });
+    res.json({ looks: looks.map((look) => formatLook(look, false)) });
   } catch (error) {
     console.error('[OutFind] List admin looks error:', error);
     res.status(500).json({ error: 'Failed to load admin looks' });
+  }
+}
+
+export async function getAdminLookImage(req, res) {
+  try {
+    const look = await CuratedLook.findOne({
+      _id: req.params.lookId,
+      createdBy: req.user._id,
+    }).select('imageBase64 imageMimeType');
+
+    if (!look?.imageBase64) {
+      return res.status(404).json({ error: 'Look not found' });
+    }
+
+    sendBase64Image(res, look.imageBase64, look.imageMimeType);
+  } catch (error) {
+    console.error('[OutFind] Get admin look image error:', error);
+    res.status(500).json({ error: 'Failed to load look image' });
   }
 }
 

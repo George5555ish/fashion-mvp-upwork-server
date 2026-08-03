@@ -8,6 +8,7 @@ import {
 import {
   createLook,
   deleteLook,
+  getAdminLookImage,
   listAdminLooks,
   updateLook,
 } from '../controllers/curatedLookController.js';
@@ -24,6 +25,7 @@ router.put('/collections/:collectionId', updateCollection);
 router.delete('/collections/:collectionId', deleteCollection);
 
 router.get('/looks', listAdminLooks);
+router.get('/looks/:lookId/image', getAdminLookImage);
 router.post('/looks', imageUpload.single('image'), createLook);
 router.put('/looks/:lookId', imageUpload.single('image'), updateLook);
 router.delete('/looks/:lookId', deleteLook);

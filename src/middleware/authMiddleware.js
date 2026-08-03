@@ -1,10 +1,22 @@
 import { verifyToken, formatUser } from '../services/authService.js';
 import User from '../models/User.js';
 
+function extractBearerToken(req) {
+  const header = req.headers.authorization || '';
+  if (header.startsWith('Bearer ')) {
+    return header.slice(7);
+  }
+
+  if (typeof req.query.access_token === 'string' && req.query.access_token) {
+    return req.query.access_token;
+  }
+
+  return null;
+}
+
 export async function requireAuth(req, res, next) {
   try {
-    const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    const token = extractBearerToken(req);
 
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
@@ -34,8 +46,7 @@ export function requireAdmin(req, res, next) {
 
 export async function optionalAuth(req, res, next) {
   try {
-    const header = req.headers.authorization || '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    const token = extractBearerToken(req);
 
     if (token) {
       const payload = verifyToken(token);

@@ -8,7 +8,6 @@ function formatLookSummary(look) {
     caption: look.caption,
     links: look.links || [],
     imageMimeType: look.imageMimeType,
-    imageBase64: look.imageBase64,
     collectionId: look.collection?.toString() || null,
     createdAt: look.createdAt,
   };
@@ -34,7 +33,9 @@ export async function listPublishedCollections(req, res) {
     const looks = await CuratedLook.find({
       published: true,
       collection: { $in: collectionIds },
-    }).sort({ createdAt: -1 });
+    })
+      .select('title caption links imageMimeType collection createdAt')
+      .sort({ createdAt: -1 });
 
     const looksByCollection = new Map();
     for (const look of looks) {
@@ -48,7 +49,9 @@ export async function listPublishedCollections(req, res) {
     const uncategorizedLooks = await CuratedLook.find({
       published: true,
       $or: [{ collection: null }, { collection: { $exists: false } }],
-    }).sort({ createdAt: -1 });
+    })
+      .select('title caption links imageMimeType collection createdAt')
+      .sort({ createdAt: -1 });
 
     res.json({
       collections: collections
@@ -79,7 +82,9 @@ export async function getPublishedCollection(req, res) {
     const looks = await CuratedLook.find({
       collection: collection._id,
       published: true,
-    }).sort({ createdAt: -1 });
+    })
+      .select('title caption links imageMimeType collection createdAt')
+      .sort({ createdAt: -1 });
 
     res.json({ collection: formatCollection(collection, looks) });
   } catch (error) {
