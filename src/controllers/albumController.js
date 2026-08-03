@@ -11,12 +11,26 @@ function formatAlbum(album) {
   };
 }
 
+function formatProductSummary(product) {
+  if (!product) {
+    return null;
+  }
+
+  return {
+    id: product._id.toString(),
+    name: product.name,
+    price: product.price,
+    imageUrl: product.imageUrl,
+    shopUrl: product.shopUrl,
+  };
+}
+
 function formatAlbumDetail(album) {
   return {
     ...formatAlbum(album),
     items: (album.items || []).map((item) => ({
       id: item._id.toString(),
-      product: item.product,
+      product: formatProductSummary(item.product),
       notes: item.notes,
       savedFromUploadId: item.savedFromUploadId,
       detectedCategory: item.detectedCategory,
@@ -28,7 +42,9 @@ function formatAlbumDetail(album) {
 
 export async function listAlbums(req, res) {
   try {
-    const albums = await Album.find({ user: req.user._id }).sort({ updatedAt: -1 });
+    const albums = await Album.find({ user: req.user._id })
+      .select('name items createdAt updatedAt')
+      .sort({ updatedAt: -1 });
     res.json({ albums: albums.map(formatAlbum) });
   } catch (error) {
     console.error('[OutFind] List albums error:', error);
@@ -64,7 +80,7 @@ export async function getAlbum(req, res) {
     const album = await Album.findOne({
       _id: req.params.albumId,
       user: req.user._id,
-    }).populate('items.product');
+    }).populate('items.product', 'name price imageUrl shopUrl');
 
     if (!album) {
       return res.status(404).json({ error: 'Album not found' });
@@ -135,7 +151,10 @@ export async function addProductToAlbum(req, res) {
 
     await album.save();
 
-    const populated = await Album.findById(album._id).populate('items.product');
+    const populated = await Album.findById(album._id).populate(
+      'items.product',
+      'name price imageUrl shopUrl',
+    );
     res.status(201).json({ album: formatAlbumDetail(populated) });
   } catch (error) {
     console.error('[OutFind] Add to album error:', error);

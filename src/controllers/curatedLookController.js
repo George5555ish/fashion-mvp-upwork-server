@@ -96,7 +96,9 @@ export async function getPublishedLook(req, res) {
     const look = await CuratedLook.findOne({
       _id: req.params.lookId,
       published: true,
-    }).populate('collection', 'name published');
+    })
+      .select('title caption links imageMimeType collection createdAt updatedAt')
+      .populate('collection', 'name published');
 
     if (!look) {
       return res.status(404).json({ error: 'Look not found' });
@@ -106,7 +108,7 @@ export async function getPublishedLook(req, res) {
       return res.status(404).json({ error: 'Look not found' });
     }
 
-    res.json({ look: formatLook(look) });
+    res.json({ look: formatLook(look, false) });
   } catch (error) {
     console.error('[OutFind] Get look error:', error);
     res.status(500).json({ error: 'Failed to load look' });
