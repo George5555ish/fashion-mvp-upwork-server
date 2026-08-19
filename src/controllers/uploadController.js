@@ -4,6 +4,7 @@ import Upload from '../models/Upload.js';
 import DetectedItem from '../models/DetectedItem.js';
 import { analyzeOutfit, formatDetectedItems } from '../services/openaiService.js';
 import { findSimilarProducts } from '../services/matchingService.js';
+import { compressUploadedFile } from '../utils/imageCompression.js';
 
 // Configure multer for memory storage (we'll convert to base64)
 const storage = multer.memoryStorage();
@@ -36,28 +37,27 @@ export async function uploadImage(req, res, next) {
     }
 
     try {
-      // Convert image to base64
-      const base64Image = req.file.buffer.toString('base64');
+      const compressed = await compressUploadedFile(req.file);
       const uploadId = uuidv4();
 
       console.log('[OutFind] Upload received', {
         uploadId,
-        mimeType: req.file.mimetype,
-        sizeKb: Math.round(req.file.size / 1024),
+        mimeType: compressed.mimeType,
+        sizeKb: Math.round(compressed.compressedBytes / 1024),
       });
 
       // Create upload record
       const uploadRecord = new Upload({
         uploadId,
-        imageBase64: base64Image,
-        imageMimeType: req.file.mimetype,
+        imageBase64: compressed.base64,
+        imageMimeType: compressed.mimeType,
         status: 'processing',
       });
 
       await uploadRecord.save();
 
       // Start analysis asynchronously (don't wait for it)
-      analyzeAndMatchProducts(uploadRecord._id, base64Image, req.file.mimetype)
+      analyzeAndMatchProducts(uploadRecord._id, compressed.base64, compressed.mimeType)
         .catch(error => {
           console.error('Background analysis error:', error);
           Upload.findByIdAndUpdate(uploadRecord._id, {

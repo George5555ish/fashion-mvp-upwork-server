@@ -2,6 +2,7 @@ import ClosetItem from '../models/ClosetItem.js';
 import Outfit from '../models/Outfit.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendBase64Image } from '../utils/imageResponse.js';
+import { compressUploadedFile } from '../utils/imageCompression.js';
 
 const VALID_CATEGORIES = [
   'top', 'shirt', 'jacket', 'coat', 'pants', 'jeans', 'dress',
@@ -94,13 +95,15 @@ export async function createClosetItem(req, res) {
       return res.status(400).json({ error: 'Item image is required' });
     }
 
+    const compressed = await compressUploadedFile(req.file);
+
     const item = await ClosetItem.create({
       user: req.user._id,
       name,
       category,
       color,
-      imageBase64: req.file.buffer.toString('base64'),
-      imageMimeType: req.file.mimetype,
+      imageBase64: compressed.base64,
+      imageMimeType: compressed.mimeType,
     });
 
     res.status(201).json({ item: formatClosetItem(item, { includeImage: true }) });
@@ -154,8 +157,9 @@ export async function updateClosetItem(req, res) {
       item.color = req.body.color.trim();
     }
     if (req.file) {
-      item.imageBase64 = req.file.buffer.toString('base64');
-      item.imageMimeType = req.file.mimetype;
+      const compressed = await compressUploadedFile(req.file);
+      item.imageBase64 = compressed.base64;
+      item.imageMimeType = compressed.mimeType;
     }
 
     if (!item.name || !item.category) {

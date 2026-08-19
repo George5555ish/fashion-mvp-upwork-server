@@ -1,6 +1,7 @@
 import CuratedLook from '../models/CuratedLook.js';
 import CuratedCollection from '../models/CuratedCollection.js';
 import { sendBase64Image } from '../utils/imageResponse.js';
+import { compressUploadedFile } from '../utils/imageCompression.js';
 
 function formatLook(look, includeImage = true) {
   const formatted = {
@@ -163,14 +164,16 @@ export async function createLook(req, res) {
       return res.status(400).json({ error: 'Outfit image is required' });
     }
 
+    const compressed = await compressUploadedFile(req.file);
+
     const look = await CuratedLook.create({
       title,
       caption,
       links,
       published,
       collection,
-      imageBase64: req.file.buffer.toString('base64'),
-      imageMimeType: req.file.mimetype,
+      imageBase64: compressed.base64,
+      imageMimeType: compressed.mimeType,
       createdBy: req.user._id,
     });
 
@@ -212,8 +215,9 @@ export async function updateLook(req, res) {
       look.collection = await resolveCollectionId(req.body.collectionId, req.user._id);
     }
     if (req.file) {
-      look.imageBase64 = req.file.buffer.toString('base64');
-      look.imageMimeType = req.file.mimetype;
+      const compressed = await compressUploadedFile(req.file);
+      look.imageBase64 = compressed.base64;
+      look.imageMimeType = compressed.mimeType;
     }
 
     await look.save();
