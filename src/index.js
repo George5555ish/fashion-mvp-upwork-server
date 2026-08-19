@@ -20,6 +20,7 @@ import CuratedLook from './models/CuratedLook.js';
 import CuratedCollection from './models/CuratedCollection.js';
 import { logEbayConfigStatus } from './services/ebay/ebayLogger.js';
 import { logSerpApiConfigStatus } from './services/serpapi/serpapiLogger.js';
+import { connectDb, pingDb } from './db/connection.js';
 
 dotenv.config();
 
@@ -46,9 +47,8 @@ app.use('/api', (req, res, next) => {
 });
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fashion-analyzer')
+connectDb()
 .then(async () => {
-  console.log('✅ Connected to MongoDB');
   await Promise.all([
     ClosetItem.syncIndexes(),
     Outfit.syncIndexes(),
@@ -74,17 +74,18 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/products', productRoutes);
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  const databaseConnected = await pingDb();
   const healthStatus = {
-    status: 'ok',
-    message: 'Server is running',
+    status: databaseConnected ? 'ok' : 'degraded',
+    message: databaseConnected ? 'Server is running' : 'Database connection issue',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: databaseConnected ? 'connected' : 'disconnected',
   };
 
-  const statusCode = healthStatus.database === 'connected' ? 200 : 503;
+  const statusCode = databaseConnected ? 200 : 503;
   res.status(statusCode).json(healthStatus);
 });
 

@@ -6,6 +6,7 @@ import {
   signToken,
   verifyPassword,
 } from '../services/authService.js';
+import { isAtlasStaleAuthError, withDbRetry } from '../db/connection.js';
 
 export async function register(req, res) {
   try {
@@ -21,17 +22,18 @@ export async function register(req, res) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await withDbRetry(() => User.findOne({ email }));
     if (existingUser) {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
-    const user = await User.create({
+    const passwordHash = await hashPassword(password);
+    const user = await withDbRetry(() => User.create({
       email,
       name,
-      passwordHash: await hashPassword(password),
+      passwordHash,
       role: resolveUserRole(email),
-    });
+    }));
 
     const token = signToken(user);
 
@@ -41,6 +43,11 @@ export async function register(req, res) {
     });
   } catch (error) {
     console.error('[OutFind] Register error:', error);
+    if (isAtlasStaleAuthError(error)) {
+      return res.status(503).json({
+        error: 'Database connection issue. Please try again in a moment.',
+      });
+    }
     res.status(500).json({ error: 'Failed to create account' });
   }
 }
@@ -54,7 +61,7 @@ export async function login(req, res) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    const user = await User.findOne({ email });
+    const user = await withDbRetry(() => User.findOne({ email }));
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
@@ -78,6 +85,11 @@ export async function login(req, res) {
     });
   } catch (error) {
     console.error('[OutFind] Login error:', error);
+    if (isAtlasStaleAuthError(error)) {
+      return res.status(503).json({
+        error: 'Database connection issue. Please try again in a moment.',
+      });
+    }
     res.status(500).json({ error: 'Failed to log in' });
   }
 }
