@@ -3,6 +3,7 @@ import Outfit from '../models/Outfit.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sendBase64Image } from '../utils/imageResponse.js';
 import { compressUploadedFile } from '../utils/imageCompression.js';
+import { MAX_CLOSET_ITEMS_PER_USER } from '../config/limits.js';
 
 const VALID_CATEGORIES = [
   'top', 'shirt', 'jacket', 'coat', 'pants', 'jeans', 'dress',
@@ -56,7 +57,13 @@ export async function listClosetItems(req, res) {
     const items = await ClosetItem.find({ user: req.user._id })
       .select(CLOSET_ITEM_LIST_FIELDS)
       .sort({ createdAt: -1 });
-    res.json({ items: items.map((item) => formatClosetItem(item)) });
+    res.json({
+      items: items.map((item) => formatClosetItem(item)),
+      limits: {
+        current: items.length,
+        max: MAX_CLOSET_ITEMS_PER_USER,
+      },
+    });
   } catch (error) {
     console.error('[OutFind] List closet items error:', error);
     res.status(500).json({ error: 'Failed to load closet items' });
@@ -93,6 +100,13 @@ export async function createClosetItem(req, res) {
 
     if (!req.file) {
       return res.status(400).json({ error: 'Item image is required' });
+    }
+
+    const itemCount = await ClosetItem.countDocuments({ user: req.user._id });
+    if (itemCount >= MAX_CLOSET_ITEMS_PER_USER) {
+      return res.status(403).json({
+        error: `Closet limit reached (${MAX_CLOSET_ITEMS_PER_USER} items). Remove an item to add more.`,
+      });
     }
 
     const compressed = await compressUploadedFile(req.file);

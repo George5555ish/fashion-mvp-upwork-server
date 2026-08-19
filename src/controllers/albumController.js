@@ -1,5 +1,6 @@
 import Album from '../models/Album.js';
 import Product from '../models/Product.js';
+import { MAX_ALBUMS_PER_USER } from '../config/limits.js';
 
 function formatAlbum(album) {
   return {
@@ -45,7 +46,13 @@ export async function listAlbums(req, res) {
     const albums = await Album.find({ user: req.user._id })
       .select('name items createdAt updatedAt')
       .sort({ updatedAt: -1 });
-    res.json({ albums: albums.map(formatAlbum) });
+    res.json({
+      albums: albums.map(formatAlbum),
+      limits: {
+        current: albums.length,
+        max: MAX_ALBUMS_PER_USER,
+      },
+    });
   } catch (error) {
     console.error('[OutFind] List albums error:', error);
     res.status(500).json({ error: 'Failed to load albums' });
@@ -57,6 +64,13 @@ export async function createAlbum(req, res) {
     const name = req.body.name?.trim();
     if (!name) {
       return res.status(400).json({ error: 'Album name is required' });
+    }
+
+    const albumCount = await Album.countDocuments({ user: req.user._id });
+    if (albumCount >= MAX_ALBUMS_PER_USER) {
+      return res.status(403).json({
+        error: `Album limit reached (${MAX_ALBUMS_PER_USER} albums). Delete an album to create a new one.`,
+      });
     }
 
     const album = await Album.create({
