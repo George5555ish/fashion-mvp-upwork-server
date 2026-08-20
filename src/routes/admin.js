@@ -12,12 +12,15 @@ import {
   listAdminLooks,
   updateLook,
 } from '../controllers/curatedLookController.js';
+import { getAdminDashboard } from '../controllers/adminDashboardController.js';
 import { requireAdmin, requireAuth } from '../middleware/authMiddleware.js';
 import { imageUpload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
 router.use(requireAuth, requireAdmin);
+
+router.get('/dashboard', getAdminDashboard);
 
 router.get('/collections', listAdminCollections);
 router.post('/collections', createCollection);

@@ -21,6 +21,7 @@ import CuratedCollection from './models/CuratedCollection.js';
 import { logEbayConfigStatus } from './services/ebay/ebayLogger.js';
 import { logSerpApiConfigStatus } from './services/serpapi/serpapiLogger.js';
 import { connectDb, pingDb } from './db/connection.js';
+import { startImageCompressionScheduler } from './services/imageCompressionJob.js';
 
 dotenv.config();
 
@@ -137,4 +138,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   logEbayConfigStatus();
   logSerpApiConfigStatus();
+  startImageCompressionScheduler();
 });
