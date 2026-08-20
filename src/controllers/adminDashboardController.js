@@ -3,6 +3,7 @@ import ClosetItem from '../models/ClosetItem.js';
 import Album from '../models/Album.js';
 import Outfit from '../models/Outfit.js';
 import CuratedLook from '../models/CuratedLook.js';
+import { sendBase64Image } from '../utils/imageResponse.js';
 
 const CLOSET_ITEM_FIELDS = 'name category color user createdAt imageMimeType';
 const SIGNUP_LOOKBACK_DAYS = 30;
@@ -186,5 +187,113 @@ export async function getAdminDashboard(req, res) {
   } catch (error) {
     console.error('[OutFind] Admin dashboard error:', error);
     res.status(500).json({ error: 'Failed to load admin dashboard' });
+  }
+}
+
+export async function getAdminUserDetail(req, res) {
+  try {
+    const user = await User.findById(req.params.userId).select('email name role createdAt updatedAt');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const [closetItems, albums, outfits] = await Promise.all([
+      ClosetItem.find({ user: user._id })
+        .select('name category color imageMimeType createdAt')
+        .sort({ createdAt: -1 }),
+      Album.find({ user: user._id })
+        .select('name items createdAt updatedAt')
+        .populate('items.product', 'name price imageUrl shopUrl')
+        .sort({ updatedAt: -1 }),
+      Outfit.find({ user: user._id })
+        .select('name items shareId isShared sharedAt createdAt updatedAt')
+        .populate('items', 'name category color imageMimeType')
+        .sort({ updatedAt: -1 }),
+    ]);
+
+    res.json({
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        closetItemCount: closetItems.length,
+        albumCount: albums.length,
+        savedProductCount: albums.reduce((sum, album) => sum + (album.items?.length || 0), 0),
+        outfitCount: outfits.length,
+      },
+      closetItems: closetItems.map((item) => ({
+        id: item._id.toString(),
+        name: item.name,
+        category: item.category,
+        color: item.color,
+        imageMimeType: item.imageMimeType,
+        createdAt: item.createdAt,
+      })),
+      albums: albums.map((album) => ({
+        id: album._id.toString(),
+        name: album.name,
+        itemCount: album.items?.length || 0,
+        createdAt: album.createdAt,
+        updatedAt: album.updatedAt,
+        items: (album.items || []).map((item) => ({
+          id: item._id.toString(),
+          notes: item.notes || '',
+          detectedCategory: item.detectedCategory || '',
+          detectedColor: item.detectedColor || '',
+          savedAt: item.createdAt,
+          product: item.product
+            ? {
+              id: item.product._id.toString(),
+              name: item.product.name,
+              price: item.product.price,
+              imageUrl: item.product.imageUrl,
+              shopUrl: item.product.shopUrl,
+            }
+            : null,
+        })),
+      })),
+      outfits: outfits.map((outfit) => ({
+        id: outfit._id.toString(),
+        name: outfit.name,
+        isShared: Boolean(outfit.isShared),
+        shareId: outfit.shareId || null,
+        sharedAt: outfit.sharedAt || null,
+        createdAt: outfit.createdAt,
+        updatedAt: outfit.updatedAt,
+        items: (outfit.items || []).map((item) => (
+          item._id
+            ? {
+              id: item._id.toString(),
+              name: item.name,
+              category: item.category,
+              color: item.color,
+              imageMimeType: item.imageMimeType,
+            }
+            : null
+        )).filter(Boolean),
+      })),
+    });
+  } catch (error) {
+    console.error('[OutFind] Admin user detail error:', error);
+    res.status(500).json({ error: 'Failed to load user details' });
+  }
+}
+
+export async function getAdminClosetItemImage(req, res) {
+  try {
+    const item = await ClosetItem.findById(req.params.itemId).select('imageBase64 imageMimeType');
+
+    if (!item?.imageBase64) {
+      return res.status(404).json({ error: 'Closet item not found' });
+    }
+
+    sendBase64Image(res, item.imageBase64, item.imageMimeType);
+  } catch (error) {
+    console.error('[OutFind] Admin closet item image error:', error);
+    res.status(500).json({ error: 'Failed to load closet item image' });
   }
 }
